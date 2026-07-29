@@ -1,0 +1,125 @@
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENA 32
+#define ENB 33
+
+// Pinos dos sensores infravermelho de distância 
+#define SHARP_FRENTE 34
+#define SHARP_ESQ    35
+#define SHARP_DIR    39
+
+// Pinos dos sensores de linha
+#define BORDA_ESQ 18
+#define BORDA_DIR 19
+
+// PWM 
+const uint16_t freq = 5000;
+const uint8_t resolucao = 8;
+
+const uint8_t VEL_ATAQUE = 255;
+const uint8_t VEL_BUSCA  = 160;
+
+const int VAL_DISTANCIA = 1200; 
+
+void setup() {
+  Serial.begin(115200);
+
+  // Motores 
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  
+  ledcAttach(ENA, freq, resolucao);
+  ledcAttach(ENB, freq, resolucao);
+
+  // Sensores
+  pinMode(BORDA_ESQ, INPUT);
+  pinMode(BORDA_DIR, INPUT);
+  pinMode(SHARP_FRENTE, INPUT);
+  pinMode(SHARP_ESQ, INPUT);
+  pinMode(SHARP_DIR, INPUT);
+
+  // pausa de 5s da regra
+  parar();
+  delay(5000);
+}
+
+// Funções de direção e velocidade 
+void frenteVel(uint8_t vel) {
+  digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);
+  ledcWrite(ENA, vel);     ledcWrite(ENB, vel);
+}
+
+void trasVel(uint8_t vel) {
+  digitalWrite(IN1, LOW);  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+  ledcWrite(ENA, vel);     ledcWrite(ENB, vel);
+}
+
+void esquerdaVel(uint8_t vel) {
+  digitalWrite(IN1, LOW);  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);
+  ledcWrite(ENA, vel);     ledcWrite(ENB, vel);
+}
+
+void direitaVel(uint8_t vel) {
+  digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+  ledcWrite(ENA, vel);     ledcWrite(ENB, vel);
+}
+
+void parar() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  ledcWrite(ENA, 0);
+  ledcWrite(ENB, 0);
+}
+
+// Função para sair da borda
+void evitarBorda(bool esq, bool dir) {
+  trasVel(VEL_ATAQUE);
+  delay(400);
+
+  if (esq) {
+    direitaVel(VEL_ATAQUE);
+  } else {
+    esquerdaVel(VEL_ATAQUE);
+  }
+  delay(350);
+}
+
+void loop() {
+  // Verificação da borda e acionamento da funcao de sair dela
+  bool bordaEsq = (digitalRead(BORDA_ESQ) == LOW);
+  bool bordaDir = (digitalRead(BORDA_DIR) == LOW);
+
+  if (bordaEsq || bordaDir) {
+    evitarBorda(bordaEsq, bordaDir);
+    return;
+  }
+
+  // Leitura analógica dos sensores Sharp
+  int valFrente = analogRead(SHARP_FRENTE);
+  int valEsq    = analogRead(SHARP_ESQ);
+  int valDir    = analogRead(SHARP_DIR);
+
+  // Lógica do combate
+  if (valFrente > VAL_DISTANCIA) {
+    frenteVel(VEL_ATAQUE);
+  } 
+  else if (valEsq > VAL_DISTANCIA) {
+    esquerdaVel(VEL_ATAQUE);
+  } 
+  else if (valDir > VAL_DISTANCIA) {
+    direitaVel(VEL_ATAQUE);
+  } 
+  else {
+    esquerdaVel(VEL_BUSCA);
+  }
+}
